@@ -1,0 +1,45 @@
+---
+title: "ECell Optimization - First 3 runs"
+output: html_document
+---
+
+The E cell optimization was conduced with hTAAR5 and TMA as this receptor will be used for future E cell experiments. 
+The first experiment I ran was prior to much knowledge of how a response surface model worked; therefore, the design of the experiment may not be appropriate for the this part of these following analyses.
+In the initial run I looked at luc data alone and RL data, but realized that the only important value is the normData because that is what we will be using for analysis runs in the future. 
+
+```{r}
+#libraries
+library(ggplot2)
+library(reshape2)
+library(plyr)
+library(rsm)
+
+#import data
+df <- read.csv("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/Results/ECellOptimization_160719.csv")
+df <- df[,1:14]
+#split it into parts to look at different data
+lucData <- df[,1:8]
+RLData <- df[,c(1:5, 9:11)]
+normData <- df[,c(1:5, 12:14)]
+normData_TMA100 <- subset(normData, select = c("Receptor", "SV40", "CRE", "TMA_100_norm"))
+#code the receptor, sv40 and CRE into equally spaced variables, example 
+#coded.data(ChemReact1, x1 ~ (Time - 85)/5, x2 ~ (Temp - 175)/5)
+normTMA_100_coded <- coded.data(normData_TMA100, x1 ~(Receptor-15)/10, x2 ~ (SV40 - 8.75)/6.25, x3 ~ (CRE - 11.25)/8.75)
+
+#rsm models
+rsm_testFO <- rsm(TMA_100_norm ~FO(x1,x2,x3), data = normTMA_100_coded)
+summary(rsm_testFO)
+persp (rsm_testFO, ~x1+ x2 + x3, col = rainbow(50), contours = "colors")
+#first order test which shows that the lack of fit is not significant, so its probably an okay model - meaning that we are not near where we need to be
+```
+The takeaway from these plots is that the first order model is a good fit, which means that we are not near a place where we are reaching our maximum or minimum values.  
+From here, we adjusted the values for the second experiment.
+
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+plot(cars)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
