@@ -1,0 +1,311 @@
+---
+title: "ECell Optimization - First 3 runs"
+output: html_document
+---
+
+#FIRST EXPERIMENT: 7-19-16  
+  
+No repeats, but every combination was run once with three different concentrations of TMA  
+
+### Receptor (in ng): 5, 10, 15, 20, 25  
+### SV40 (in ng): 2.5, 5, 10, 15  
+### CRE (in ng): 2.5, 5, 10, 20  
+  
+The E cell optimization was conduced with hTAAR5 and TMA as this receptor will be used for future E cell experiments.   
+The first experiment I ran was prior to much knowledge of how a response surface model worked; therefore, the design of the experiment may not be appropriate for the this part of these following analyses.  
+In the initial run I looked at luc data alone and RL data, but realized that the only important value is the normData because that is what we will be using for analysis runs in the future. 
+
+```{r}
+#libraries
+library(ggplot2)
+library(reshape2)
+library(plyr)
+library(rsm)
+
+#import data
+df <- read.csv("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/Results/ECellOptimization_160719.csv")
+df <- df[,1:14]
+#split it into parts to look at different data
+normData <- df[,c(1:5, 12:14)]
+normData_TMA100 <- subset(normData, select = c("Receptor", "SV40", "CRE", "TMA_100_norm"))
+#code the receptor, sv40 and CRE into equally spaced variables, example 
+#coded.data(ChemReact1, x1 ~ (Time - 85)/5, x2 ~ (Temp - 175)/5)
+normTMA_100_coded <- coded.data(normData_TMA100, x1 ~(Receptor-15)/10, x2 ~ (SV40 - 8.75)/6.25, x3 ~ (CRE - 11.25)/8.75)
+#rsm models
+rsm_testFO <- rsm(TMA_100_norm ~FO(x1,x2,x3), data = normTMA_100_coded)
+summary(rsm_testFO)
+persp (rsm_testFO, ~x1+ x2 + x3, col = rainbow(50), contours = "colors")
+#first order test which shows that the lack of fit is not significant, so its probably an okay model - meaning that we are not near where we need to be
+
+#Compare to FO rsm with the other concentrations of TMA
+normData_TMA30 <- subset(normData, select = c("Receptor", "SV40", "CRE", "TMA_30_norm"))
+normTMA_30_coded <- coded.data(normData_TMA30, x1 ~(Receptor-15)/10, x2 ~ (SV40 - 8.75)/6.25, x3 ~ (CRE - 11.25)/8.75)
+rsm_testFO <- rsm(TMA_30_norm ~FO(x1,x2,x3), data = normTMA_30_coded)
+summary(rsm_testFO)
+persp (rsm_testFO, ~x1+ x2 + x3, col = rainbow(50), contours = "colors")
+#this has a significant lack of fit, so look at second order model
+rsm_testSO <- rsm(TMA_30_norm ~SO(x1,x2,x3), data = normTMA_30_coded)
+summary(rsm_testSO)
+persp (rsm_testSO, ~x1+ x2 + x3, col = rainbow(50), contours = "colors")
+#now 300
+normData_TMA300 <- subset(normData, select = c("Receptor", "SV40", "CRE", "TMA_300_norm"))
+normTMA_300_coded <- coded.data(normData_TMA300, x1 ~(Receptor-15)/10, x2 ~ (SV40 - 8.75)/6.25, x3 ~ (CRE - 11.25)/8.75)
+rsm_testFO <- rsm(TMA_300_norm ~FO(x1,x2,x3), data = normTMA_300_coded)
+summary(rsm_testFO)
+persp (rsm_testFO, ~x1+ x2 + x3, col = rainbow(50), contours = "colors")
+#this has a significant lack of fit, so look at second order model
+rsm_testSO <- rsm(TMA_300_norm ~SO(x1,x2,x3), data = normTMA_300_coded)
+summary(rsm_testSO)
+persp (rsm_testSO, ~x1+ x2 + x3, col = rainbow(50), contours = "colors")
+#all the surface models look similar for these three concentrations.
+```
+The takeaway from these plots is that the first order model is a good fit, which means that we are not near a place where we are reaching our maximum or minimum values.    
+First and second order test show going towards maximum where CRE is high and SV40 is low.  Receptor is less clear but the first order equation suggests that lower receptor is better.  
+From here, we adjusted the values for the second experiment. At this point a low concentration of receptor did not make sense to me and I thought a lot of that was because I did not design the experiment right. Since our total signal was so low, I had assumed we would need more receptor for the experiment for work better, so I increased the values of receptor. 
+###############################################################################################################################################
+
+
+#SECOND EXPERIMENT: 7-28-16  
+The main change for the experiment other than different experimental values is the use of each value being run in triplicate.  This allows us to run statistical tests between the three concentrations of TMA. What we are then trying to optimize here is the lowest p value, or the biggest difference between the normalized luc values, which means the DR curve will be the most pronounced.  (we could not conduct t-tests or anovas on the first data set because there was only one datapoint for each test).   
+This run was not as optimized as it could have been as I was just learning how to interpret the rsm data.   
+  
+###Receptor (in ng): 10, 15, 20, 25  
+###SV40 (in ng): 2.5, 5, 10, 15  
+###CRE (in ng): 10, 15, 20  
+  
+```{r}
+#remove everything from previous data
+rm(list=ls(all=TRUE))
+df <- read.csv("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/Results/ECellOptimization_160728.csv")
+df <- df[1:96,1:14]
+normData <- df[,c(1:5,8,11,14)]
+#receptor - middle is 17.5 and difference from middle is 7.5
+normData_coded <- coded.data(normData, x1 ~(Receptor-17.5)/7.5, x2 ~ (SV40 - 8.75)/6.25, x3 ~ (CRE - 15)/5)
+#rsm analysis - First Order models
+#30
+norm_30 <- rsm(TMA_30_norm ~ FO(x1,x2,x3), data = normData_coded)
+summary(norm_30)
+persp(norm_30, ~x1+x2+x3, col = rainbow(50), contours = "colors")
+#100
+norm_100 <- rsm(TMA_100_norm ~ FO(x1,x2,x3), data = normData_coded)
+summary(norm_100)
+persp(norm_100, ~x1+x2+x3, col = rainbow(50), contours = "colors")
+#300
+norm_300 <- rsm(TMA_300_norm ~ FO(x1,x2,x3), data = normData_coded)
+summary(norm_300)
+persp(norm_300, ~x1+x2+x3, col = rainbow(50), contours = "colors")
+```
+The lack of fit for the First order model is significant so we used a second order model. 
+```{r}
+#second order model
+#30
+norm_30 <- rsm(TMA_30_norm ~ SO(x1,x2,x3), data = normData_coded)
+summary(norm_30)
+persp(norm_30, ~x1+x2+x3, col = rainbow(50), contours = "colors")
+#100
+norm_100 <- rsm(TMA_100_norm ~ SO(x1,x2,x3), data = normData_coded)
+summary(norm_100)
+persp(norm_100, ~x1+x2+x3, col = rainbow(50), contours = "colors")
+#300
+norm_300 <- rsm(TMA_300_norm ~ SO(x1,x2,x3), data = normData_coded)
+summary(norm_300)
+persp(norm_300, ~x1+x2+x3, col = rainbow(50), contours = "colors")
+```
+
+From these models, I concluded that the receptor value didn't matter much. But I also was able to conduct analyses on the p values of the t-tests I ran. 
+```{r}
+normData.melt <- melt(normData, c("Row", "Column", "Receptor", "SV40", "CRE"))
+normData.melt <- normData.melt[,3:7]
+normDatattest_30to100 <- ddply(subset(normData.melt, variable %in% c("TMA_30_norm", "TMA_100_norm")), .variables = c("Receptor", "SV40", "CRE"), function(x) test = t.test(x$value~x$variable)$p.value)
+```
+  
+  You can visualize the p values from the t-test between each combination at TMA concentrations of 30uM versus 100uM  
+```{r, echo = FALSE}
+ggplot(normDatattest_30to100, aes(x = Receptor, y = V1)) +
+  geom_point()
+
+ggplot(normDatattest_30to100, aes(x = SV40, y = V1)) +
+  geom_point()
+
+ggplot(normDatattest_30to100, aes(x = CRE, y = V1)) +
+  geom_point()
+```
+Although this doesn't give us much information.
+```{r}
+ttest_30to100.coded<- coded.data(normDatattest_30to100, x1 ~(Receptor-17.5)/7.5, x2 ~ (SV40 - 8.75)/6.25, x3 ~ (CRE - 15)/5)
+#rsm on the ttest from 30 to 100
+#second order test
+ttest_30to100 <- rsm(V1 ~ SO(x1,x2,x3), data = ttest_30to100.coded)
+summary(ttest_30to100)
+persp (ttest_30to100, ~ x1 + x2 + x3, col = rainbow(50), contours = "colors")
+```
+From this graph it appears that the receptor concentration is not as important as SV40 and CRE for the p value response.   
+  
+Here are the results of the other ttest between the 100uM and 300uM TMA concentrations.   
+```{r, echo = FALSE}
+normDatattest_100to300 <- ddply(subset(normData.melt, variable %in% c("TMA_300_norm", "TMA_100_norm")), .variables = c("Receptor", "SV40", "CRE"), function(x) test = t.test(value~variable, x)$p.value)
+#visualize
+ggplot(normDatattest_100to300, aes(x = Receptor, y = V1)) +
+  geom_point()
+ggplot(normDatattest_100to300, aes(x = SV40, y = V1)) +
+  geom_point()
+ggplot(normDatattest_100to300, aes(x = CRE, y = V1)) +
+  geom_point()
+
+#code data
+ttest_100to300.coded<- coded.data(normDatattest_100to300, x1 ~(Receptor-17.5)/7.5, x2 ~ (SV40 - 8.75)/6.25, x3 ~ (CRE - 15)/5)
+#SO rsm
+ttest_100to300 <- rsm(V1 ~ SO(x1,x2,x3), data = ttest_100to300.coded)
+summary(ttest_100to300)
+persp (ttest_100to300, ~ x1 + x2 + x3, col = rainbow(50), contours = "colors")
+```
+This graph alone suggests that higher receptor amount might result in a greater difference in p value.  However, the first ttest graphs suggest that a lower receptor concentration is beneficial.   
+  
+I chose the values of my next experiment based on the values of the stationary points from this analysis:  
+  "the stationary points do make sense though becuase x1 receptor is negative, which means that its at a maximum, x2 SV40 is negative which means it has   a maximum, and CRE is positive which means it only has a minimum  
+  This means for the next experiment we need to use lowr values of SV40, similar values of receptor, and higher values of CRE"  
+-I am not longer sure that this statement is true...  
+  
+I did not run an anova analysis on this data originally, but I am returning to the data to run it now - in other words the following analysis did not influence my decisions on the next optimization run, where I decided to use higher receptor concentrations.   
+Here is the analysis from running an anova between the three different TMA concentrations:  
+```{r}
+#run anova
+normDataaov <- ddply(normData.melt, .variables = c("Receptor", "SV40", "CRE"), function(x) test = summary(aov(value~variable, x))[[1]][["Pr(>F)"]][[1]])
+#code the data
+normDataaov.coded<- coded.data(normDataaov, x1 ~(Receptor-17.5)/7.5, x2 ~ (SV40 - 8.75)/6.25, x3 ~ (CRE - 15)/5)
+```
+```{r,echo = FALSE}
+ggplot(normDataaov, aes(x = Receptor, y = V1)) +
+  geom_point()
+ggplot(normDataaov, aes(x = SV40, y = V1)) +
+  geom_point()
+ggplot(normDataaov, aes(x = CRE, y = V1)) +
+  geom_point()
+```
+```{r}
+#rsm analysis
+normDataaov_SO <- rsm(V1 ~ SO(x1,x2,x3), data = normDataaov.coded)
+summary(normDataaov_SO)
+persp (normDataaov_SO, ~ x1 + x2 + x3, col = rainbow(50), contours = "colors")
+```
+This suggests that the receptor value may be best around 15-20ng, which supports the values of receptor concentration I picked in my next experiment.
+This response surface and analysis suggests that higher values of CRE and SV40 result in a lower p value. My theory is that this is due to more pipetting errors that result from the lower volumes of SV40 creating a less consistent area of the response surface. Additionally, the advantage to lower SV40 is that it makes the overall normalized response of the cells larger. The RL values in generally are very high for these cells.  
+  
+###############################################################################################################################################  
+  
+  
+#THIRD EXPERIMENT: 8-4-16  
+I concluded from the last experiment that Receptor was not as important as SV40 and CRE, so tested only two high values of receptor. Unfortunately, this resulted in problems testing the surface of the receptor, as at least three values are needed to include it in analysis.  Therefore, this exeriment was analyzed for the surface response of SV40 and CRE at the two values of receptor separately.   
+  
+From the ttests of the last experiment, I chose lower values of SV40 and higher values of CRE for this experiment. I changed the protocol in order to reduce errors from pipetting low volumes of SV40 (see transfection sheet for details). Additionally, after reading more about experimental design of RSMs, I made chose values of SV40 and CRE that were centered around a value which was also tested.  Although this is still not a perfectly designed experiment for this model, having centered values should improve the appropriateness of the fit of this model.   
+  
+In this experiment I also ran a number of wells with the original amounts of SV40(5ng), CRE (10ng) and receptor(5ng), to compare performance.  
+  
+###Receptor (in ng): 15, 17.5  
+###SV40 (in ng): 1, 1.5, 2, 2.5, 3  
+###CRE (in ng): 17.5, 20.625, 23.75, 26.875, 30  
+  
+```{r}
+rm(list=ls(all=TRUE))
+#import data
+df <- read.csv("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/Results/ECellOptimization_160804.csv")
+#code the data
+dfforrsm <- subset(df, UseforRSM == "y")
+df.coded <- coded.data(dfforrsm, x1 ~(Receptor-16.25)/1.25, x2 ~ (SV40 - 2)/1, x3 ~ (CRE - 23.75)/6.25)
+normData <- df.coded[,c(1:3,8,11,14)]
+#split between low and high receptor
+normData.Low <- subset(normData, x1 == -1)
+normData.High <- subset(normData, x1 == 1)
+```
+  
+The data look similar between the different concentrations of TMA, so here I am just showing the second order model (because the first order model showed significant lack of fit) for the normalized values of luciferase for one concentration of TMA (100uM) at both receptor concentrations:  
+```{r}
+norm_100 <- rsm(TMA_100_norm ~ SO(x2,x3), data = normData.Low)
+summary(norm_100)
+persp (norm_100, ~ x2 + x3, col = rainbow(50), contours = "colors") 
+norm_100 <- rsm(TMA_100_norm ~ SO(x2,x3), data = normData.High)
+summary(norm_100)
+persp (norm_100, ~ x2 + x3, col = rainbow(50), contours = "colors") 
+```
+  
+These graphs suggest that a higher CRE and lower SV40 results in a higher normalized luciferase value, which makes sense because we are dividing luciferase by RL.   
+  
+Now we will look at the results of the pvalues of the anova (so looking for a minimum on the response surface):  
+```{r}
+normData <- dfforrsm[,c(1:3,8,11,14)] #make new dataframe so we can code after ddply which makes the graphs more readable
+normData.melt <- melt(normData, c("Receptor", "SV40", "CRE")) #melt
+#apply the anova
+normData.aov <- ddply(subset(normData.melt, variable %in% c("TMA_30_norm", "TMA_100_norm", "TMA_300_norm")), .variables = c("Receptor", "SV40", "CRE"), function(x) test = summary(aov(value~variable, x))[[1]][["Pr(>F)"]][[1]])
+#code it.
+normData.aov <- coded.data(normData.aov, x1 ~(Receptor-16.25)/1.25, x2 ~ (SV40 - 2)/1, x3 ~ (CRE - 23.75)/6.25)
+
+#divide it by receptor
+normData.aov.Low <- subset(normData.aov, x1 == -1) 
+normData.aov.High <- subset(normData.aov, x1 == 1) 
+#rsm 2nd order
+anova <- rsm(V1 ~ SO(x2,x3), data = normData.aov.Low)
+summary(anova)
+persp (anova, ~  x2 + x3, col = rainbow(50), contours = "colors")
+
+anova <- rsm(V1 ~ SO(x2,x3), data = normData.aov.High)
+summary(anova)
+persp (anova, ~  x2 + x3, col = rainbow(50), contours = "colors")
+```
+  
+The response surfaces for the two different receptor concentrations look completely different.   
+The p values on the high amount of receptor do not get as low as those for the low value of receptor, which suggests to me that lower values of receptor may actually be beneficial for maximizing the difference between the different concentrations of TMA.   
+As a note, none of the pvalues were lower than that of the original values of receptor, SV40 and CRE that we use for the Hana3A cells.   
+```{r}
+df.orig <- subset(df, UseforRSM == "n")
+df.orig.norm <- df.orig[,c(1:3,8,11,14)]
+df.norm.melt <- melt(df.orig.norm, c("Receptor", "SV40", "CRE"))
+test.orig <- aov(value~variable, df.norm.melt)
+summary(test.orig)
+p.orig <- summary(test.orig)[[1]][["Pr(>F)"]][[1]]
+p.orig
+
+#versus lowest p values from new tests
+normData.aov.Low[which(normData.aov.Low$V1< .001),]
+```
+
+###############################################################################################################################################  
+  
+#FOURTH EXPERIMENT: 8-11-16  
+###Receptor: 5ng, 10ng, 15ng  
+###SV40: 0.5ng, 0.75ng, 1.25ng, 1.5ng  
+###CRE: 15ng, 20ng, 25ng, 30ng, 35ng  
+
+```{r}
+rm(list=ls(all=TRUE))
+#import data
+df <- read.csv("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/Results/ECellOptimization_160811.csv")
+dfforrsm <- subset(df, UseforRSM == "y")
+normData <- dfforrsm[,c(1:3,8,11,14)] #separate out normalized data
+normData.melt <- melt(normData, c("Receptor", "SV40", "CRE")) #melt
+#anova
+normData.aov <- ddply(subset(normData.melt, variable %in% c("TMA_30_norm", "TMA_100_norm", "TMA_300_norm")), .variables = c("Receptor", "SV40", "CRE"), function(x) test = summary(aov(value~variable, x))[[1]][["Pr(>F)"]][[1]])
+```
+```{r, echo = FALSE}
+ggplot(normData.aov, aes(x = Receptor, y = V1))+
+  geom_point()
+ggplot(normData.aov, aes(x = SV40, y = V1)) +
+  geom_point()
+ggplot(normData.aov, aes(x = CRE, y = V1)) +
+  geom_point()
+```
+```{r}
+#code it.
+normData.aov <- coded.data(normData.aov, x1 ~(Receptor-16.25)/1.25, x2 ~ (SV40 - 2)/1, x3 ~ (CRE - 23.75)/6.25)
+#rsm first order
+# anova <- rsm(V1 ~ FO(x1,x2,x3), data = normData.aov)
+# summary(anova)
+# persp (anova, ~ x1 + x2 + x3, col = rainbow(50), contours = "colors")
+#rsm 2nd order
+anova <- rsm(V1 ~ SO(x1,x2,x3), data = normData.aov)
+summary(anova)
+persp (anova, ~  x1+x2 + x3, col = rainbow(50), contours = "colors")
+```
+
+I eliminated one point where the data looked weird and it changed the whole outcome analysis. I'm going to continue to work on this analysis for the fourth experiment/
+
+What should I do next?
