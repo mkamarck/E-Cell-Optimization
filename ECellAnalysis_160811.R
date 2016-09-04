@@ -225,17 +225,68 @@ persp (rsm.norm, ~  x1+x2 + x3, col = rainbow(50), contours = "colors")
 
 write.csv(matches.order, "/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/Results/ECellAnalysisTopHits_160811.csv")
 
+
+###################
 #graph the h3a results.
 h3A <- read.csv("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/Results/ECellOptimization_H3AControl_160811.csv")
 h3A_avgs <- ddply(h3A, .variables = c("TMA.Concentration", "Plate_number", "Receptor"), .fun = summarize, average = mean(norm), standdev = sd(norm))
-h3A_avgs$logTMA <- log(h3A_avgs$TMA.Concentration)
+h3A_avgs$logTMA <- log10(h3A_avgs$TMA.Concentration)
+for(i in 1:length(h3A_avgs$TMA.Concentration)){
+  if(h3A_avgs$TMA.Concentration[i] == 0){
+    h3A_avgs$logTMA[i] = -10
+  }
+}
 ggplot(h3A_avgs, aes(x = logTMA, y = average, colour = factor(Receptor))) +
   geom_point() + 
   geom_errorbar(aes(ymin = average - (standdev/sqrt(3)), ymax = average + (standdev/sqrt(3)))) +
   facet_grid(.~Plate_number)
 
-###################
-library(drc)
-fplogistic(norm~logTMA, data = h3A_avgs, fct = LL.3())
 
+library(drc)
+#fo
+#this doesn't work - I'm copying Yusuke's example
+#fplogistic(formula = norm ~ logTMA, data = subset(h3A_avgs, Receptor == 830 & Plate == 7), lowerl=c(-10,NA,0.0000000000001),upperl=c(NA,10,0.01),fct = LL.4(fixed = c(1,NA,NA,NA), names = (c("Slope", "Top", "Bottom", "ED"))))
+
+#see if it works for one
+h3A.sub <- subset(h3A, Plate_number == 8 & Receptor == 830)
+h3A.sub$logTMA <- log10(h3A.sub$TMA.Concentration)
+for(i in 1:length(h3A.sub$TMA.Concentration)){
+  if(h3A.sub$TMA.Concentration[i] == 0){
+    h3A.sub$logTMA[i] = -10
+  }
+}
+h3A.sub <- na.omit(h3A.sub)
+h3A.sub[which(h3A.sub$logTMA==Inf)] = NA
+
+# MOD1 <- drm(formula = norm ~ logTMA, data = h3A.sub, fct = LL.4())
+
+#the key is that we need to use the non-log form of TMA becuse the equation turns it into the log form on its own
+MOD1 <- drm(formula = norm ~ TMA.Concentration, data = h3A.sub[complete.cases(h3A.sub),], lowerl=c(-10,NA,0.0000000000001),upperl=c(NA,10,0.01),fct = LL.4(fixed=c(1,NA,NA,NA),names=(c("Slope", "Top", "Bottom", "ED"))))
+summary(MOD1)
+#and do the plate 7 for rho
+h3A.sub <- subset(h3A, Plate_number == 8 & Receptor == 999)
+h3A.sub$logTMA <- log10(h3A.sub$TMA.Concentration)
+  h3A.sub[which(h3A.sub$logTMA==Inf)] = 10
+MOD2 <- drm(formula = norm ~ TMA.Concentration, data = h3A.sub[complete.cases(h3A.sub),], fct = LL.4(fixed=c(1,NA,NA,NA),names=(c("Slope", "Top", "Bottom", "ED"))))
+summary(MOD2)
+
+# MOD1<-drm(formula = NormalizedLuc ~ concentration, data = x[complete.cases(x),], fct = LL.4(fixed=c(1,NA,NA,NA),names=(c("Slope", "Top", "Bottom", "ED"))))
+# plotDR(temp,plot=TRUE)
+eq1 = function(x){summary(MOD1)$coefficients[2,1] + (summary(MOD1)$coefficients[1,1]-summary(MOD1)$coefficients[2,1])/(1+10^((log10(summary(MOD1)$coefficients[3,1]) - x)*1))}
+eq2 = function(x){summary(MOD2)$coefficients[2,1] + (summary(MOD2)$coefficients[1,1]-summary(MOD2)$coefficients[2,1])/(1+10^((log10(summary(MOD2)$coefficients[3,1]) - x)*1))}
+
+# 
+plot(MOD2) 
+#the first problem was that i wasn't using the log10 for TMA concentrations so the model didn't fit what I was actually graphing
+pdf("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/Results/160811_h3ADR_plate8.pdf")
+ggplot(subset(h3A_avgs, Plate_number == 8), aes(x = logTMA, y = average, colour = factor(Receptor))) +
+  geom_point() +
+  geom_errorbar(aes(ymin = average - (standdev/sqrt(3)), ymax = average + (standdev/sqrt(6)))) +
+  ylab ("Normalized Luciferase Value") +
+  stat_function(fun = eq1, color="#F8766D") +
+  stat_function(fun = eq2) 
+dev.off()
+  
+
+#I will eventually figure out how to calculate p values for these things.   
 
