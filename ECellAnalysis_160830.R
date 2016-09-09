@@ -6,8 +6,8 @@ library(plyr)
 library(rsm)
 
 #import data
-#df <- read.csv("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/Results/E Cell Optimization_160830.csv")
-df  <- read.csv("/Users/mkamarck/Documents/School\ and\ Lab/Mainland\ Lab/E-Cell-Optimization/Results/E Cell Optimization_160830.csv")
+df <- read.csv("/Volumes/mainland-1/Projects/TAARs/E\ cell\ Optimization/Results/E Cell Optimization_160830.csv")
+#df  <- read.csv("/Users/mkamarck/Documents/School\ and\ Lab/Mainland\ Lab/E-Cell-Optimization/Results/E Cell Optimization_160830.csv")
 #df <- df[1:96,1:14]
 #code the data
 dfforrsm <- subset(df, UseforRSM == "y")
@@ -200,7 +200,7 @@ compare_norm.p.luc <- rbind(pvalue.topten, normData.signalToNoise_topTen, lucDat
 compare_norm.p.luc$dupRows <- dupsBetweenGroups(compare_norm.p.luc, "df")
 trueForBoth <- compare_norm.p.luc[which(compare_norm.p.luc$dupRows == "TRUE"),]
 matches.order <- trueForBoth[order(trueForBoth$Receptor, trueForBoth$SV40, trueForBoth$CRE),]
-
+#write.csv(matches.order, "/Volumes/mainland-1/Projects/TAARs/E\ cell\ Optimization/Results/ECellOptimization_160830_topHits.csv")
 # receptor 5, SV40 .75, and CRE 30 seems to be the best on all of these fronts. 
 #so definitely lower receptor 
 
