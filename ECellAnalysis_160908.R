@@ -4,6 +4,11 @@ library(ggplot2)
 library(reshape2)
 library(plyr)
 library(drc)
+library(tidyverse)
+library(kimisc)
+library(data.table)
+library(combinat)
+library(gtools)
 
 #import data
 df <- read.csv("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/Results/ECellOptimization_160908.csv")
@@ -204,4 +209,33 @@ write.csv(c(order.mm, order.STN), file = "/Volumes/mainland/Projects/TAARs/E\ ce
 #5. compare signal to noise between the different options; look at average signal to noise and also at signal to noise at each of the various points
 
 
+###############################################
+#bootstrapping signal to noise####
+#start with df
+df.top <- subset(df, (masterMix == 12 | masterMix == 7 | masterMix == 10) & receptorType == "TAAR5", select = c("masterMix", "TMAConcentration", "norm"))
+bootstrapThisShit <- ddply(.data = df.top, .variables = c("masterMix", "TMAConcentration"), function(x) combinations(length(x), 3, x$norm, repeats.allowed = TRUE))
+bootstrapThisShit$STN <- apply(bootstrapThisShit[,3:5], 1, function(x) mean(x)/sd(x) )
+#get rid of all of those that have infinity becuase I can't figure out a good way to handle it, especially since we want to be able to graph this thing. 
+bootstrapThisShit.noInf <- bootstrapThisShit[-which(bootstrapThisShit$STN==Inf),]
+avgBootstrap <- ddply(bootstrapThisShit.noInf, .variables = c("masterMix", "TMAConcentration"), .fun = summarize, avg = mean(STN), stdev =sd(STN))
+#plot it!
+ggplot(avgBootstrap, aes(x = factor(masterMix), y = avg)) +
+  geom_point() +
+  facet_grid(.~TMAConcentration) +
+  geom_errorbar(aes(ymin = avg-stdev, ymax = avg+stdev))
 
+#there are two concentrations of TMA at which the 7 and masterMix does not overlap the 10 or, more importantly, the original 12. Therefore, 7 is our best masterMix option.
+#do some t-tests to see if these are actually different
+TMAConcentration2 <- TMAConcentration
+for(i in 1:length(TMAConcentration)){
+  print(i)
+  print(t.test(STN~masterMix, data = subset(bootstrapThisShit.noInf, masterMix %in% c("7", "12") & TMAConcentration == TMAConcentration2[i])))
+}
+#7 is significnatly higher than 12 in signal to noise ratio in 3 out of 8 scenarios. 12 is greater than 7 in STN ratio in 1 out of 8 and they are the same in the other 4.
+#try ttests for mixture 10
+
+for(i in 1:length(TMAConcentration)){
+  print(i)
+  print(t.test(STN~masterMix, data = subset(bootstrapThisShit.noInf, masterMix %in% c("10", "12") & TMAConcentration == TMAConcentration2[i])))
+}
+#10 is not significantly greater than 12 in any of the mixtures. 
