@@ -239,3 +239,14 @@ for(i in 1:length(TMAConcentration)){
   print(t.test(STN~masterMix, data = subset(bootstrapThisShit.noInf, masterMix %in% c("10", "12") & TMAConcentration == TMAConcentration2[i])))
 }
 #10 is not significantly greater than 12 in any of the mixtures. 
+
+aov.test <- aov(STN~TMAConcentration + masterMix, data = bootstrapThisShit.noInf)
+aov.test
+summary(aov.test)
+
+aov.test <- aov(STN~TMAConcentration + masterMix, data = subset(bootstrapThisShit.noInf, masterMix %in% c("12", "7")))
+aov.test
+summary(aov.test)
+
+sub <- subset(bootstrapThisShit.noInf, masterMix %in% c("12", "10"))
+              

@@ -6,7 +6,7 @@ output: html_document
 Goal: To optimize our assay output for the HEK cell line (E Cells), for assays that have previously been run using Hana3A cells (H3A). 
 
 Running the assay as was optimized for H3A cells provides low signal (normalized luciferase values) for our assay, although the dose response curve is evident (see below).
-In order to make the assay between we would like to increase the signal, while maintaining a equally high or higher signal to noise ratio (calculated by: mean/standard deviation)
+In order to make the assay between we would like to increase the signal, while maintaining an equally high signal to noise ratio (calculated by: mean/standard deviation)
 
 We ran dose response curves on 11 assay conditions that looked the most promising and compared them to the original assay conditions as used for H3A cells. Here are the curves for our original plotted with our top two candidates:
 
@@ -106,8 +106,8 @@ ggplot(subset(df, masterMix %in% c(10, 12)), aes(x = logTMA, y = norm, colour = 
 
 ```
 
-These two options both give much greater signal than the original with the greatest signal to noise ratio of all the new options for assay conditions.  We next wanted to check that the signal to noise ratio significantly better for either of these new assay conditions than for the original conditions. To do this we performed a bootstrapping analysis to generate the potential error in our signal to noise ratio calculations. 
-From our calculations the new mix (7) has a significantly higher signal to noise ratio othan the original assay conditions. Below is the signal to noise error with a sample concentration of TMA (p = 0.013)
+These two options both give much greater signal than the original with the greatest signal to noise ratio of all the new options for assay conditions.  
+We next wanted to check that the signal to noise ratio significantly better for either of these new assay conditions than for the original conditions. To do this we performed a bootstrapping analysis to generate the potential error in our signal to noise ratio calculations. 
 
 ```{r, echo = FALSE}
 df.top <- subset(df, (masterMix == 12 | masterMix == 7 | masterMix == 10) & receptorType == "TAAR5", select = c("masterMix", "TMAConcentration", "norm"))
@@ -119,15 +119,21 @@ avgBootstrap <- ddply(bootstrapThisShit.noInf, .variables = c("masterMix", "TMAC
 TMAConcentration2 <- unique(df$TMAConcentration)
 avgBootstrap$masterMix <- factor(avgBootstrap$masterMix, levels = c("12", "10", "7"))
 #plot it!
-ggplot(subset(avgBootstrap, TMAConcentration == TMAConcentration2[5]), aes(x = masterMix, y = avg)) +
-  geom_point() +
-  #facet_grid(.~TMAConcentration) +
-  geom_errorbar(aes(ymin = avg-stdev, ymax = avg+stdev)) +
-  xlab(NULL) +
-  ylab("Signal To Noise Ratio") +
-  ggtitle("Comparing Signal to noise ratio of the top two new assay conditions with the original") +
-  scale_x_discrete("masterMix", labels = c("12" = "Original","10" = "New - 10",
-  "7" = "New - 7"))
+# ggplot(subset(avgBootstrap, TMAConcentration == TMAConcentration2[5]), aes(x = masterMix, y = avg)) +
+#   geom_point() +
+#   #facet_grid(.~TMAConcentration) +
+#   geom_errorbar(aes(ymin = avg-stdev, ymax = avg+stdev)) +
+#   xlab(NULL) +
+#   ylab("Signal To Noise Ratio") +
+#   ggtitle("Comparing Signal to noise ratio of the top two new assay conditions with the original") +
+#   scale_x_discrete("masterMix", labels = c("12" = "Original","10" = "New - 10",
+#   "7" = "New - 7"))
+# 
+# t.test(STN~masterMix, data = subset(bootstrapThisShit.noInf, masterMix %in% c("7", "12") & TMAConcentration == TMAConcentration2[5]))
 
-t.test(STN~masterMix, data = subset(bootstrapThisShit.noInf, masterMix %in% c("7", "12") & TMAConcentration == TMAConcentration2[5]))
+aov.test <- aov(STN~TMAConcentration + masterMix, data = bootstrapThisShit.noInf)
+aov.test
+summary(aov.test)
 ```
+
+It appears that neither of these mixes have a significantly higher signal to noise ratio than the original; however the signal itself is much higher for both options, which is preferable. These top two assay conditions are equally optimized, so we will run with the conditions in 7 becuase it requires less amount of the starting materials. 
