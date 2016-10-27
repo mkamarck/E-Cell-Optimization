@@ -1,0 +1,251 @@
+---
+title: "9-30-16 Antag Screen Results"
+output: pdf_document
+---
+This experiment was performed to show that the new protocol from the E cell optimization was consistent with previous results from the antagonist screen performed with the Hana3A cells.  Due to human error, many of the TMA alone wells did not work (see lab notebook for details), so the results from this experiment are skewed.  I will show some examples of how the results from this experiment do not make sense.  
+  
+This experiment also contained a sub-experiment.  Previously, we were worried that due to runover contaimination between wells, that the cells were receiving higher than the EC80 of TMA (500uM).  To test this, I ran a dose-response curve in the middle of the plate (for both TMA and forskolin). I expected to see that the TMA by itself responded higher than the respective concentration calculated from my dose response experiment.  
+  
+#Dose Response Experiment:  
+```{r, echo = FALSE, include = FALSE}
+#import
+library(tidyverse)
+library(drc)
+library(sandwich)
+library(lmtest)
+library(DataCombine)
+#import data
+plate1 <- read.csv("/Volumes/mainland-1/Projects/TAARs/E\ cell\ Optimization/AntagScreenRepeat_mini/160930_plate1.csv", stringsAsFactors = FALSE)[,1:11]
+plate2 <- read.csv("/Volumes/mainland-1/Projects/TAARs/E\ cell\ Optimization/AntagScreenRepeat_mini/160930_plate2.csv", stringsAsFactors = FALSE)[,1:11]
+plate3 <- read.csv("/Volumes/mainland-1/Projects/TAARs/E\ cell\ Optimization/AntagScreenRepeat_mini/160930_plate3.csv", stringsAsFactors = FALSE)[,1:11]
+plate4 <- read.csv("/Volumes/mainland-1/Projects/TAARs/E\ cell\ Optimization/AntagScreenRepeat_mini/160930_plate4.csv", stringsAsFactors = FALSE)[,1:11]
+#combine per cell type
+eCells <- rbind(plate1, plate2)
+H3A <- rbind(plate3, plate4)
+#calculate the normalized response
+eCells$norm <- eCells$Luc/eCells$RL
+H3A$norm <- H3A$Luc/H3A$RL
+###########DOSE RESPONSE###############################
+#becuase of all the TMA in 384 well plate, we ran a dose response to see if we are actually applying the EC80 to cells.  
+#In other words, if there is enough bleedover between wells, we might be seeing more like 600 or more uM TMA applied to cells than 500uM
+#therefore we ran a dose response in the middle of the plate to see if the curve looked the same as we were expecting. 
+
+#concentration of TMA alone
+TMA_conc <- log10(500e-6)
+for_conc <- log10(1e-6)
+
+#E-CELLS
+DRTMA.eCells <- subset(eCells, experimentType == "DR")
+DRTMA.eCells$logTMA <- log10(DRTMA.eCells$concentration_ag) #take logTMA for graphing (not for fitting the function)
+DRTMA.eCells$concentration_ag[which(DRTMA.eCells$logTMA==-10)] = 0
+#create the fit line - TAAR5
+TAAR5.eCells <- subset(DRTMA.eCells, CloneKey == 830)
+#the key is that we need to use the non-log form of TMA becuse the equation turns it into the log form on its own
+modelTAAR5 <- drm(formula = norm ~ concentration_ag, data = TAAR5.eCells, fct = LL.4(fixed=c(1,NA,NA,NA),names=(c("Slope", "Top", "Bottom", "ED"))))
+summary(modelTAAR5)
+TAAR5.eq = function(x){summary(modelTAAR5)$coefficients[2,1] + (summary(modelTAAR5)$coefficients[1,1]-summary(modelTAAR5)$coefficients[2,1])/(1+10^((log10(summary(modelTAAR5)$coefficients[3,1]) - x)*1))}
+#fit for rho
+Rho.eCells <- subset(DRTMA.eCells, CloneKey == 999)
+modelRho <- drm(formula = norm ~ concentration_ag, data = Rho.eCells, fct = LL.4(fixed=c(1,NA,NA,NA),names=(c("Slope", "Top", "Bottom", "ED"))))
+summary(modelRho)
+Rho.eq = function(x){summary(modelRho)$coefficients[2,1] + (summary(modelRho)$coefficients[1,1]-summary(modelRho)$coefficients[2,1])/(1+10^((log10(summary(modelRho)$coefficients[3,1]) - x)*1))}
+
+#plot TMA DR
+#put TMA by itself on the graph from E2
+TMA_811 <- subset(eCells, Plate == 2 & agonistInStockKey == 817 & experimentType %in% c("antagScreen", "control"))
+TMA_811<-subset(TMA_811, RL > 1000) #subset out low RL values
+Agx1<-subset(TMA_811, antagInStockKey == 811) ##Agonist only
+#code to put forskolin by itself on the ecell graph
+Rho <- subset(eCells, Plate == 1 & agonistInStockKey == 77 & experimentType %in% c("antagScreen", "control"))
+RhoAlone<-subset(Rho, antagInStockKey == 811) ##Agonist only
+```
+```{r, echo = FALSE}
+#calculate the EC50 and 80
+cat("EC50 and 80 for TAAR5:")
+EC.TAAR <- ED(modelTAAR5, c(50,80), interval = "delta")[2,1]
+cat("EC50 and 80 for Rho:")
+EC.Rho <- ED(modelRho, c(50,80), interval = "delta")[2,1]
+```
+```{r, echo = FALSE}
+#graph
+DRTMA.eCells$receptor <- factor(DRTMA.eCells$CloneKey, levels = c(830, 999), labels = c("hTAAR5", "Rho"))
+ggplot(DRTMA.eCells, aes(x = logTMA, y = norm, colour = receptor)) +
+  geom_point() +
+  geom_point(data = Agx1, aes(x = TMA_conc, y = norm, colour = "TMA alone from well E2")) +
+  geom_point(data = RhoAlone, aes(x = for_conc, y = norm, colour = "Forskolin alone from well E2")) +
+  #geom_errorbar(aes(ymin = average - (standdev/sqrt(6)), ymax = average + (standdev/sqrt(6)))) +
+  ylab ("Normalized Luciferase Value") +
+  stat_function(fun = TAAR5.eq, colour = "#7CAE00") +  
+  stat_function(fun = Rho.eq, colour = "#00BFC4") +
+  ggtitle("Dose Response for TMA and Forskolin in E Cells") +
+  geom_vline(xintercept = log10(EC.TAAR), colour = "#7CAE00", linetype = "longdash") +
+  geom_vline(xintercept = log10(EC.Rho), colour = "#00BFC4", linetype = "longdash") 
+
+```  
+  
+Important Observations:  
+1. Even though the dose responses of forskolin and TMA are not balanced, TMA and forskolin by themselves have an equivalent response (of course, this is approximate because we have only one data point so we can't see the variation). It is important that the control (forskolin) is at a concentration where the cell response is equivalent to the cell response to the agonist at EC80.  
+  
+2. Both TMA and forskolin alone are lower than the response curve, which is the opposite of what we expected.  For TMA, it appears that the TMA alone could be similar to the point in the curve given the variation. For forskolin, this is likely becuase the fit of the curve is not very good.  
+  
+3. 500uM TMA (the EC80 calculated from DRs on the H3A cells), is higher than the EC80 for E cells (green dashed line).  But also, the response to this TMA alone (which we can consider with concentration x for this experiment) has a lower response than the EC80 for these E cells. EC80 need to be calculated for previous runs with E cells. And we need to figure out why the response to TMA alone is so much lower than expected.   
+  
+    
+How does this dose Response experiment look for the hana3A cells?  
+```{r, echo=FALSE, include = FALSE}
+DR.H3A <- subset(H3A, experimentType == "DR")
+DR.H3A$logTMA <- log10(DR.H3A$concentration_ag) #take logTMA for graphing (not for fitting the function)
+DR.H3A$concentration_ag[which(DR.H3A$logTMA==-10)] = 0
+TAAR5.H3A <- subset(DR.H3A, CloneKey == 830)
+Rho.H3A <- subset(DR.H3A, CloneKey == 999)
+#model
+modelTAAR5 <- drm(formula = norm ~ concentration_ag, data = TAAR5.H3A, fct = LL.4(fixed=c(1,NA,NA,NA),names=(c("Slope", "Top", "Bottom", "ED"))))
+summary(modelTAAR5)
+TAAR5.eq = function(x){summary(modelTAAR5)$coefficients[2,1] + (summary(modelTAAR5)$coefficients[1,1]-summary(modelTAAR5)$coefficients[2,1])/(1+10^((log10(summary(modelTAAR5)$coefficients[3,1]) - x)*1))}
+#fit for rho
+modelRho <- drm(formula = norm ~ concentration_ag, data = Rho.H3A, fct = LL.4(fixed=c(1,NA,NA,NA),names=(c("Slope", "Top", "Bottom", "ED"))))
+summary(modelRho)
+Rho.eq = function(x){summary(modelRho)$coefficients[2,1] + (summary(modelRho)$coefficients[1,1]-summary(modelRho)$coefficients[2,1])/(1+10^((log10(summary(modelRho)$coefficients[3,1]) - x)*1))}
+
+#put TMA by itself on the graph from E2
+TMA_811 <- subset(H3A, Plate == 4 & agonistInStockKey == 817 & experimentType %in% c("antagScreen", "control"))
+TMA_811<-subset(TMA_811, RL > 1000) #subset out low RL values
+Agx1<-subset(TMA_811, antagInStockKey == 811) ##Agonist only
+#put forskolin by itself on the H3A graph
+Rho <- subset(H3A, Plate == 3 & agonistInStockKey == 77 & experimentType %in% c("antagScreen", "control"))
+RhoAlone<-subset(Rho, antagInStockKey == 811) ##Agonist only
+```
+```{r}
+#calculate the EC50 and 80
+cat("EC50 and 80 for TAAR5:")
+EC.TAAR <- ED(modelTAAR5, c(50,80), interval = "delta")[2,1]
+cat("EC50 and 80 for Rho:")
+EC.Rho <- ED(modelRho, c(50,80), interval = "delta")[2,1]
+```
+```{r, echo = FALSE}
+#plot TMA DR
+DR.H3A$receptor <- factor(DR.H3A$CloneKey, levels = c(830, 999), labels = c("hTAAR5", "Rho"))
+ggplot(DR.H3A, aes(x = logTMA, y = norm, colour = receptor)) +
+  geom_point() +
+  geom_point(data = Agx1, aes(x = TMA_conc, y = norm, colour = "TMA alone from well E2")) +
+  geom_point(data = RhoAlone, aes(x = for_conc, y = norm, colour = "Forskolin alone from well E2")) +
+  ylab ("Normalized Luciferase Value") +
+  stat_function(fun = TAAR5.eq, colour = "#7CAE00") +  
+  stat_function(fun = Rho.eq, colour = "#00BFC4") +
+  ggtitle("Dose Response for TMA and Forskolin in H3A Cells") +
+  geom_vline(xintercept = log10(EC.TAAR), colour = "#7CAE00", linetype = "longdash") +
+  geom_vline(xintercept = log10(EC.Rho), colour = "#00BFC4", linetype = "longdash") 
+```  
+  
+Observations:  
+1. The variance in both dose response curves is very large, especially at the higher concentrations. This could cause a problem in interpreting the antagonist results.  
+  
+2. Again the TMA and forskolin alone are both similar to one another in response, and also both below the expect response for their concentrations.    
+  
+3. 500uM is closer to the EC80 value of this experiment in these H3A cells than it was in the E cells, but it still does not quite match up.  I'm not sure why this happens, but this questionable finding is good evidence that this experiment should be repeated. 
+  
+#Antagonist Experiment:  
+It is unclear if we should read much out of the results of this part of the experiment given that all comparisons of antagonist action are compared to only one response value of TMA alone. However, we can still compare the results between the E Cells and the H3A cells to see if there is any consistancy whatsoever.  
+```{r, echo = FALSE, error=FALSE}
+rm(Screen)
+rm(Agx1)
+rm(Antag)
+#function to determine antagonist response
+AntagResponse <- function(df, plate, agKey){
+  df <- subset(df, df$Plate == plate & df$agonistInStockKey == agKey & df$experimentType %in% c("antagScreen", "controls")) #get just the data we want to look at
+  df <- subset(df, RL>1000)#subset out low RL values
+  df<-df[,c( "plateLocation", "antagInStockKey", "norm")] #columns we need
+  Agx1<-subset(df, antagInStockKey == 811) ##Agonist only
+  df$PerAg<-df$norm/(mean(Agx1$norm))*100 ##% of avg of Agonist only
+  df$PerInhib<-100-df$PerAg ##%inhib
+  Antag <- df[order(df$PerAg) , ] #order from most inhibition to least
+  Antag$rank <- c(1:length(Antag$norm)) #add rankings to antag
+  return(Antag)
+}
+
+antagResponse.output <- AntagResponse(eCells, 2, 817)
+#pull out the "top hits"
+OldTopHits.E <- antagResponse.output[antagResponse.output$antagInStockKey %in% c(678, 486, 1221, 527, 821, 827, 817),]
+#pull out the top 20
+Top20.E.TAAR5 <- antagResponse.output[c(1:20),]
+#for rho control
+antagResponse.output <- AntagResponse(eCells, 1, 77)
+OldTopHits.rho <- antagResponse.output[antagResponse.output$antagInStockKey %in% c(678, 486, 1221, 527, 821, 827, 817),] #pull out old top hits
+Top20.E.rho <- antagResponse.output[c(1:20),] #pull out new top 20
+```  
+##Rankings in this screen of the top hits from previous screen  
+(486 = 1221 = PEB)    
+### E Cells
+```{r, echo = FALSE}
+cat("TAAR5:")
+print(OldTopHits.E)
+cat("Rho Control:")
+print(OldTopHits.rho)
+```  
+```{r, echo = FALSE}
+antagResponse.output <- AntagResponse(H3A, 4, 817)
+#pull out the "top hits" TAAR5
+OldTopHits.E <- antagResponse.output[antagResponse.output$antagInStockKey %in% c(678, 486, 1221, 527, 821, 827, 817),]
+Top20.H3A.TAAR5 <- antagResponse.output[c(1:20),] #pull out the top 20
+#rho control
+antagResponse.output <- AntagResponse(H3A, 3, 77)
+OldTopHits.rho <- antagResponse.output[antagResponse.output$antagInStockKey %in% c(678, 486, 1221, 527, 821, 827, 817),] #pull out old hits
+Top20.H3A.rho <- antagResponse.output[c(1:20),] #pull out top 20
+```  
+```{r, echo = FALSE}
+cat("TAAR5:")
+print(OldTopHits.E)
+cat("Rho Control:")
+print(OldTopHits.rho)
+```  
+  
+These rankings of the old top hits don't look similar at all between E cells and H3A cells. This is probably also due to the fact that we are only comparing them to one point of TMA alone.  
+  
+Lets look at one last comparison to see if any of the top 20 hits on this screen overlap between E cells and H3A cells (just looking at TMA, not at controls)
+```{r, echo = FALSE}
+#define function dupsBetweenGroups
+dupsBetweenGroups <- function (df, idcol) {
+  # df: the data frame
+  # idcol: the column which identifies the group each row belongs to
+  # Get the data columns to use for finding matches
+  datacols <- setdiff(names(df), idcol)
+  # Sort by idcol, then datacols. Save order so we can undo the sorting later.
+  sortorder <- do.call(order, df)
+  df <- df[sortorder,]
+  # Find duplicates within each id group (first copy not marked)
+  dupWithin <- duplicated(df)
+  # With duplicates within each group filtered out, find duplicates between groups. 
+  # Need to scan up and down with duplicated() because first copy is not marked.
+  dupBetween = rep(NA, nrow(df))
+  dupBetween[!dupWithin] <- duplicated(df[!dupWithin,datacols])
+  dupBetween[!dupWithin] <- duplicated(df[!dupWithin,datacols], fromLast=TRUE) | dupBetween[!dupWithin]
+  # ============= Replace NA's with previous non-NA value ==============
+  # This is why we sorted earlier - it was necessary to do this part efficiently
+  # Get indexes of non-NA's
+  goodIdx <- !is.na(dupBetween)
+  # These are the non-NA values from x only
+  # Add a leading NA for later use when we index into this vector
+  goodVals <- c(NA, dupBetween[goodIdx])
+  # Fill the indices of the output vector with the indices pulled from
+  # these offsets of goodVals. Add 1 to avoid indexing to zero.
+  fillIdx <- cumsum(goodIdx)+1
+  # The original vector, now with gaps filled
+  dupBetween <- goodVals[fillIdx]
+  # Undo the original sort
+  dupBetween[sortorder] <- dupBetween
+  # Return the vector of which entries are duplicated across groups
+  return(dupBetween)
+}
+
+#compare between the pull outs of the top 20
+Top20.E.TAAR5$df <- "ECells"
+Top20.H3A.TAAR5$df <- "H3A"
+Top20 <- rbind(Top20.E.TAAR5, Top20.H3A.TAAR5)
+Top20$dups <- dupsBetweenGroups(Top20, "df")
+Top20.both <- Top20[which(Top20$dups == "TRUE"),]
+```
+  
+None of the top 20 are consistent between H3A and E cells. Again this is to be expected based on the one value that all the comparisons are made from.  
+  
+#Conclusions  
+This experiment needs to be re-run. It would be helpful to run the dose response in the middle of the plate again to get better comparisons of the EC80 value. Beyond the lack of positive controls, another thing that could have contributed to the data is that I did not make new odor dilution plates, but instead used the ones that I had made in march for the last time I tried to repeat the TAAR5 antagonist screen. It is possible that since the dilution plates were sitting in the fridge for so long this may have affected some of the odors. This is probably a minor variable compared to the fact that so few of the postive controls were successful. 
