@@ -22,22 +22,22 @@ x = 817 #agonist #
 y = "TMA" #agonist name
 z = "hTAAR5" #receptor
 
-Screen<-subset(eCells, Plate == 2 & agonistInStockKey == x & experimentType %in% c("antagScreen", "control"))
+Screen<-subset(H3A, Odor1K == x )
 LowRL<-subset(Screen, Screen$RL < 1000) #how many have low RL?
 Screen<-subset(Screen, Screen$RL > 1000) #subset out low RL values
 
-Screen<-Screen[,c( "plateLocation", "antagInStockKey", "norm")] #columns we need
+#Screen<-Screen[,c( "plateLocation", "antagInStockKey", "norm")] #columns we need
 
 #Antag<-subset(Screen, Odor1InstockKey == x) ##subset fof agonist
-Agx2<-subset(Screen, antagInStockKey == x) ##Agonist + Agonist in screen
-Agx1<-subset(Screen, antagInStockKey == 811) ##Agonist only
+Agx2<-subset(Screen, Odor2K == x) ##Agonist + Agonist in screen
+Agx1<-subset(Screen, Odor2K == 811) ##Agonist only
 Screen["PerAg"]<-Screen$norm/(mean(Agx1$norm))*100 ##% of avg of Agonist only
 Screen["PerInhib"]<-100-Screen$PerAg ##%inhib
 Antag <- Screen[order(Screen$PerAg) , ]
 #add rankings to antag
 Antag$rank <- c(1:length(Antag$norm))
 #pull out the "top hits"
-OldTopHits.E <- Antag[Antag$antagInStockKey %in% c(678, 486, 1221, 527, 821, 827, 817),]
+OldTopHits.E <- Antag[Antag$Odor2K %in% c(678, 486, 1221, 527, 821, 827, 817),]
 
 #############Look at forskolin data ####
 x = 77
@@ -55,7 +55,7 @@ Screen["PerInhib"]<-100-Screen$PerAg ##%inhib
 Antag <- Screen[order(Screen$PerAg) , ]
 #add rankings to antag
 Antag$rank <- c(1:length(Antag$norm))
-OldTopHits.E.rho <- Antag[Antag$antagInStockKey %in% c(678, 486, 1221, 527, 821, 827, 817),]
+OldTopHits.E.rho <- Antag[Antag$Odor1K %in% c(678, 486, 1221, 527, 821, 827, 817),]
 #definitly something has gone wrong because 486 and 1221 are supposed to both be PEB
 
 AntagResponse(eCells, 1, 77)
