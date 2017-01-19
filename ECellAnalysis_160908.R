@@ -9,6 +9,9 @@ library(kimisc)
 library(data.table)
 library(combinat)
 library(gtools)
+library(sandwich)
+library(lmtest)
+library(DataCombine)
 
 #import data
 df <- read.csv("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/Results/ECellOptimization_160908.csv")
@@ -48,11 +51,11 @@ ggplot(subset(df, masterMix == 12), aes(x = logTMA, y = norm, colour = factor(re
 #########################
 #plot 1
 #plot the dose response curves with the fit line
-df.mm1 <- subset(df, masterMix == 1 & receptorType == "TAAR5")
+df.mm1 <- subset(df, masterMix == 7 & receptorType == "TAAR5")
 #the key is that we need to use the non-log form of TMA becuse the equation turns it into the log form on its own
 modelTAAR5 <- drm(formula = norm ~ TMAConcentration, data = df.mm1[complete.cases(df.mm1),], fct = LL.4(fixed=c(1,NA,NA,NA),names=(c("Slope", "Top", "Bottom", "ED"))))
 summary(modelTAAR5)
-df.mm1 <- subset(df, masterMix == 1 & receptorType == "Rho")
+df.mm1 <- subset(df, masterMix == 7 & receptorType == "Rho")
 modelRho <- drm(formula = norm ~ TMAConcentration, data = df.mm1[complete.cases(df.mm1),], fct = LL.4(fixed=c(1,NA,NA,NA),names=(c("Slope", "Top", "Bottom", "ED"))))
 summary(modelRho)
 
@@ -60,17 +63,23 @@ summary(modelRho)
 # plotDR(temp,plot=TRUE)
 eq1 = function(x){summary(modelTAAR5)$coefficients[2,1] + (summary(modelTAAR5)$coefficients[1,1]-summary(modelTAAR5)$coefficients[2,1])/(1+10^((log10(summary(modelTAAR5)$coefficients[3,1]) - x)*1))}
 eq2 = function(x){summary(modelRho)$coefficients[2,1] + (summary(modelRho)$coefficients[1,1]-summary(modelRho)$coefficients[2,1])/(1+10^((log10(summary(modelRho)$coefficients[3,1]) - x)*1))}
+#calculate EC50 and 80 
+EC.TAAR <- ED(modelTAAR5, c(50,80), interval = "delta")[2,1]
+EC.Rho <- ED(modelRho, c(50,80), interval = "delta")[2,1]
 
-#pdf("/Users/mkamarck/Documents/School\ and\ Lab/Mainland\ Lab/E-Cell-Optimization/Results/160830_h3ADR_plate7.pdf")
-ggplot(subset(df, masterMix == 1), aes(x = logTMA, y = norm, colour = factor(receptorType))) +
+#pdf("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/Results/160830_h3ADR_plate7wECvalues.pdf", width = 10, height = 8)
+ggplot(subset(df, masterMix == 7), aes(x = logTMA, y = norm, colour = factor(receptorType))) +
   geom_point() +
   #geom_errorbar(aes(ymin = average - (standdev/sqrt(6)), ymax = average + (standdev/sqrt(6)))) +
   ylab ("Normalized Luciferase Value") +
   stat_function(fun = eq1) +  #, color="#F8766D"
-  stat_function(fun = eq2) +
+  stat_function(fun = eq2, colour = "#F8766D") +
   stat_function(fun = orig1, color = "slateblue") +
   stat_function(fun = orig2, color = "seagreen") +
-  ggtitle (paste("Dose Response to TMA: Receptor=", df$Receptor[1], " SV40=", df$SV40[1], " CRE=", df$CRE[1]))
+  ggtitle (paste("Dose Response to TMA: Receptor=", df$Receptor[1], " SV40=", df$SV40[1], " CRE=", df$CRE[1])) +
+  geom_vline(xintercept = log10(EC.TAAR), colour = "#00BFC4", linetype = "longdash") +
+  geom_vline(xintercept = log10(EC.Rho), colour = "#F8766D", linetype = "longdash") +
+  annotate("text", x = -8, y = 7, label = paste("TAAR5 EC80 = ", EC.TAAR))
 #dev.off()
 #########################
 
@@ -101,6 +110,19 @@ for(i in 1:11){ #11 is for the first 11 master mixes, we are leaving out 12 beca
   #set the equations equal to a variable so we can graph them later
   eq1 = function(x){summary(modelTAAR5)$coefficients[2,1] + (summary(modelTAAR5)$coefficients[1,1]-summary(modelTAAR5)$coefficients[2,1])/(1+10^((log10(summary(modelTAAR5)$coefficients[3,1]) - x)*1))}
   eq2 = function(x){summary(modelRho)$coefficients[2,1] + (summary(modelRho)$coefficients[1,1]-summary(modelRho)$coefficients[2,1])/(1+10^((log10(summary(modelRho)$coefficients[3,1]) - x)*1))}
+  #calculate the EC50 and EC80
+#   tryCatch({
+#     EC.TAAR <- ED(modelTAAR5, c(50,80), interval = "delta")[2,1]
+#   }error=function(e){
+#     cat("ERROR:", conditionMessage(e), "\n")
+#     EC.TAAR <- 0
+#     })
+#   tryCatch({
+#     EC.Rho <- ED(modelRho, c(50,80), interval = "delta")[2,1]
+#   }error=function(e){
+#     cat("ERROR:", conditionMessage(e), "\n")
+#     EC.Rho = 0
+#     })
   #graph the data
   print(ggplot(subset(df, masterMix == i), aes(x = logTMA, y = norm, colour = factor(receptorType))) +
     geom_point() +
@@ -110,9 +132,10 @@ for(i in 1:11){ #11 is for the first 11 master mixes, we are leaving out 12 beca
     stat_function(fun = eq2, color="#F8766D" ) +
     stat_function(fun = orig1, color = "slateblue") +
     stat_function(fun = orig2, color = "seagreen") +
-    ggtitle (paste("Dose Response to TMA: Master Mix=", i, " Receptor=", subset(df, masterMix == i)$Receptor[1], " SV40=", subset(df, masterMix == i)$SV40[1], " CRE=", subset(df, masterMix == i)$CRE[1]))
+    ggtitle (paste("Dose Response to TMA: Master Mix=", i, " Receptor=", subset(df, masterMix == i)$Receptor[1], " SV40=", subset(df, masterMix == i)$SV40[1], " CRE=", subset(df, masterMix == i)$CRE[1])) #+
+    #geom_vline(xintercept = log10(EC.TAAR), colour = "#00BFC4", linetype = "longdash") +
+    #geom_vline(xintercept = log10(EC.Rho), colour = "#F8766D", linetype = "longdash") 
   )
-    
 }
 #dev.off()
 #master mix 3 couldn't fit a function for TAAR5
