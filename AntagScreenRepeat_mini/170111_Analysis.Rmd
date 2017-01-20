@@ -1,6 +1,6 @@
 ---
 title: "170111 Analysis of E Cell Antag Screen"
-output: html_document
+output: pdf_document
 ---
 
 This is the third attempt to run a antagonist screen with the newly optimized E cells to make sure that H3A cells and E Cells show similar responses to odors. This run was different becuase a new aloquat of TMA was made and the antag odor block was diluted from the stock (instead of using an older dilution). In addition many extra TMA alone (or forskolin alone) wells were run throughout the plate (specifically in all of column 12 and all of row J). This will help us observe any plate effects that may be influencing these experiments. 
@@ -94,6 +94,7 @@ Antag <- Screen[order(Screen$PerAg) , ]
 Antag$rankInhib <- c(1:length(Antag$norm))
 #pull out the "top hits"
 OldTopHits.H3A <- Antag[Antag$Odor2K %in% c(678, 486, 1221, 527, 821, 827, 817),]
+
 ```
 %Inhibition rankings of trans-2-nonen-1-ol (821) and the control Linalool(827)  
 ```{r, echo = FALSE}
@@ -117,19 +118,187 @@ The H3A TMA responses are also very inconsistent. It is likely that we are seein
 
 #Examining Plate Effects
 ```{r, echo = FALSE}
-##heat maps of the 
-raw_map(data = Screen$LucData,
-      well = Screen$PlateLocation, 
+##heat maps of the  plate effects
+raw_map(data = eCells[which(eCells$Odor1K == 817),]$norm,
+      well =eCells[which(eCells$Odor1K == 817),]$PlateLocation, 
       plate =384) +
   theme_dark() +
   scale_fill_viridis() +
-  ggtitle("Luc values of E-Cells and hTAAR5")
+  ggtitle("Normalized luciferase values of E-Cells with hTAAR5")
 
-raw_map(data = eCells$norm,
-        well = eCells$PlateLocation, 
-        plate =384, 
-        plate_id = eCells$PlateNum) +
+raw_map(data = eCells[which(eCells$Odor1K == 77),]$norm,
+      well =eCells[which(eCells$Odor1K == 77),]$PlateLocation, 
+      plate =384) +
   theme_dark() +
   scale_fill_viridis() +
-  ggtitle("normalized luciferase values of E Cells")
+  ggtitle("Normalized luciferase values of E-Cells with Rho")
+
+#H3A
+raw_map(data = H3A[which(H3A$Odor1K == 817),]$norm,
+      well =H3A[which(H3A$Odor1K == 817),]$PlateLocation, 
+      plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("Normalized luciferase values of H3A with hTAAR5")
+
+raw_map(data = H3A[which(H3A$Odor1K == 77),]$norm,
+      well =H3A[which(H3A$Odor1K == 77),]$PlateLocation, 
+      plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("Normalized luciferase values of H3A with Rho")
 ```
+  
+The heat map of E cells with hTAAR5 (top) shows a very clear gradient with increasing activation down the plate from A to P. This is especially evident when you focus on the TMA alone in column 12. 
+The other plates do not show as obvious a gradient.
+Since this is looking at normalized values, I will next examine whether the luciferase or RL values are the cause of this gradient.  
+
+```{r, echo = FALSE}
+raw_map(data = eCells[which(eCells$Odor1K == 817),]$LucData,
+      well =eCells[which(eCells$Odor1K == 817),]$PlateLocation, 
+      plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("Luciferase values of E-Cells with hTAAR5 (not normalized!)")
+```  
+  
+The luciferase does not show any obvious pattern or gradient.  
+```{r, echo = FALSE}
+raw_map(data = eCells[which(eCells$Odor1K == 817),]$RLData,
+      well =eCells[which(eCells$Odor1K == 817),]$PlateLocation, 
+      plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("RL values of E-Cells with hTAAR5 (not normalized!)")
+``` 
+  
+RL values show a clear gradient with high reads on the top of the plate to lower reads on the bottom (because normalized data divides by RL, this is why we see the opposite gradient on the normalized plate).  
+  
+Interestingly, and frightenly, we see the same RL gradient on each of the other plates of this run.  
+```{r, echo = FALSE}
+raw_map(data = eCells[which(eCells$Odor1K == 77),]$RLData,
+      well =eCells[which(eCells$Odor1K == 77),]$PlateLocation, 
+      plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("RL values of E-Cells with Rho")
+
+raw_map(data = H3A[which(H3A$Odor1K == 817),]$RLData,
+      well =H3A[which(H3A$Odor1K == 817),]$PlateLocation, 
+      plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("RL values of H3A with hTAAR5")
+
+raw_map(data = H3A[which(H3A$Odor1K == 817),]$RLData,
+      well =H3A[which(H3A$Odor1K == 817),]$PlateLocation, 
+      plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("RL values of H3A with Rho")
+``` 
+  
+Why are we seeing this gradient of RL, and is it on other run of 384 plates?  
+  
+To examine this further, I will look at the last two antag screens and see if the RL values show the same gradient. 
+
+#Examine previous Antag screens for RL gradient  
+  
+For the screen on 11-4-16  
+```{r, echo = FALSE}
+#analyze the data from 9-30-16
+#this was an antagonist screen comparing results between H3A and E cells, and to make sure that the same top hits came up as the last time we ran the screen. 
+#import data
+data <- read.csv("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/AntagScreenRepeat_mini/161104_Results.csv", stringsAsFactors = FALSE)
+#get rid of unnecessary columns
+#gives all data
+data <- subset(data, select = c("TransfectionDate", "PlateNum", "CloneKey", "Odor1K", "Odor2K","Odor1C", "Odor2C", "PlateLocation", "LucData", "RLData", "Notes","LabNoteBook", "TransfectionType", "CellType"))
+#cuts down more columns to the useful ones for this analysis
+data.sub <- subset(data, select = c("PlateNum", "CloneKey", "Odor1K", "Odor2K","Odor1C", "Odor2C", "PlateLocation", "LucData", "RLData", "CellType"))
+
+#calculate normalized luc response
+data.sub$norm <- data.sub$LucData/data.sub$RLData
+#combine per cell type
+eCells <- subset(data.sub, PlateNum == 1 | PlateNum == 2)
+H3A <- subset(data.sub, PlateNum == 3 | PlateNum == 4)
+
+raw_map(data = eCells[which(eCells$Odor1K == 817),]$RLData,
+      well =eCells[which(eCells$Odor1K == 817),]$PlateLocation, 
+      plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("RL values of eCells with hTAAR5")
+
+raw_map(data = eCells[which(eCells$Odor1K == 77),]$RLData,
+      well =eCells[which(eCells$Odor1K == 77),]$PlateLocation, 
+      plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("RL values of eCells with Rho")
+
+raw_map(data = H3A[which(H3A$Odor1K == 817),]$RLData,
+      well =H3A[which(H3A$Odor1K == 817),]$PlateLocation, 
+      plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("RL values of H3A with hTAAR5")
+
+raw_map(data = H3A[which(H3A$Odor1K == 77),]$RLData,
+      well =H3A[which(H3A$Odor1K == 77),]$PlateLocation, 
+      plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("RL values of H3A with Rho")
+
+```
+  
+All of the plates from the run on 11-4-16 also show this RL pattern across the plate. What could be causing this?  
+Additionally, on the Ecell hTAAR5 plate, there is a clear pipetting effect (every other row, which is the way cells are plated and transfected), but this is the only place where this has turned up.  
+  
+Examine Run from 10/1/16 for RL pattern  
+```{r, echo = FALSE}
+plate1 <- read.csv("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/AntagScreenRepeat_mini/160930_plate1.csv", stringsAsFactors = FALSE)[,1:11]
+plate2 <- read.csv("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/AntagScreenRepeat_mini/160930_plate2.csv", stringsAsFactors = FALSE)[,1:11]
+plate3 <- read.csv("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/AntagScreenRepeat_mini/160930_plate3.csv", stringsAsFactors = FALSE)[,1:11]
+plate4 <- read.csv("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/AntagScreenRepeat_mini/160930_plate4.csv", stringsAsFactors = FALSE)[,1:11]
+#combine per cell type
+eCells <- rbind(plate1, plate2)
+H3A <- rbind(plate3, plate4)
+#calculate the normalized response
+eCells$norm <- eCells$Luc/eCells$RL
+H3A$norm <- H3A$Luc/H3A$RL
+
+raw_map(data = eCells[which(eCells$agonistInStockKey == 817),]$RL,
+      well =eCells[which(eCells$agonistInStockKey == 817),]$plateLocation, 
+      plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("RL values of eCells with hTAAR5")
+
+raw_map(data = eCells[which(eCells$agonistInStockKey == 77),]$RL,
+      well =eCells[which(eCells$agonistInStockKey == 77),]$plateLocation, 
+      plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("RL values of eCells with Rho")
+
+raw_map(data = H3A[which(H3A$agonistInStockKey == 817),]$RL,
+      well =H3A[which(H3A$agonistInStockKey == 817),]$plateLocation, 
+      plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("RL values of H3A with hTAAR5")
+
+raw_map(data = H3A[which(H3A$agonistInStockKey == 77),]$RL,
+      well =H3A[which(H3A$agonistInStockKey == 77),]$plateLocation, 
+      plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("RL values of H3A with Rho")
+```
+  
+All of the plates from the experiment on 10-4-16 show the same RL patterns as well.  
+  
+This explains the unusual result I have been seeing in these runs. In all previous experiments, the TMA alone has had the lowest normalized luciferase value, even compared to potential antagonists. The TMA alone wells have always been at the top of the plate, meaning that becuase RL is highest there, the normalized value is lowest.  
+  
+Why does the RL show this gradient? should I analyze these plates based on luciferase alone? Should I find a way to normalize the plates that takes the RL gradient into account? 

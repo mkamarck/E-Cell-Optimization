@@ -3,6 +3,10 @@
 #import
 library(tidyverse)
 library(drc)
+library(platetools)
+library(ggthemes)
+library(viridis)
+library(scales)
 #import data
 data <- read.csv("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/AntagScreenRepeat_mini/170111_Results.csv", stringsAsFactors = FALSE)
 #get rid of unnecessary columns
@@ -65,34 +69,21 @@ ggplot(data = Antag, aes(x = rankInhib, y = PerAg)) +
         axis.line = element_line(color = "black"))
 
 
-
 #####make heatmaps of raw values - E Cells #####
 #make a heatmap of the plate - specifically of the wells that I'm interested in
-library(platetools)
-library(ggthemes)
-library(viridis)
-
 
 #for aesthetics change the source code of plate tools
 #trace(plt384, edit = TRUE)
 
-#my attempt
 #pdf("/Volumes/mainland/Projects/TAARs/E\ cell\ Optimization/AntagScreenRepeat_mini/Plate Effects Analysis/170111_ECell_TAAR5_Luc.pdf")
-raw_map(data = Screen$LucData,
+raw_map(data = Screen$norm,
       well = Screen$PlateLocation, 
       plate =384) +
   theme_dark() +
   scale_fill_viridis() +
   ggtitle("Luc values of E-Cells and hTAAR5")
 #dev.off()
-#to try to figure out 
-#1. look at other 3 plates
-#2. look at luciferase by itself
-#3. look at Rl by itself
-#4. look at b-scores? try other things they suggested on the website
-#5. figure out what the hell is going on in here!
 
-# panel.spacing.x
 # raw_map(data = eCells$norm,
 #         well = eCells$PlateLocation, 
 #         plate =384, 
@@ -156,3 +147,86 @@ raw_map(data = H3ARho$RLData,
   scale_fill_viridis() +
   ggtitle("RL values of Rho with H3A cells")
 dev.off()
+
+#####Normalize RL value for plate effects before normalizing luciferase#####
+#I'm going to play around with doing this. I'm not sure how it will work, but I will expect that after normalization the TMA down the column will be more similar to itself than it was before. 
+b_map(data = data.sub[which(data.sub$PlateNum == 2),]$RL,
+        well =data.sub[which(data.sub$PlateNum == 2),]$PlateLocation, 
+        plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("ECell hTAAR5")
+
+raw_map(data = data.sub[which(data.sub$PlateNum == 2),]$RL,
+      well =data.sub[which(data.sub$PlateNum == 2),]$PlateLocation, 
+      plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("ECell hTAAR5")
+
+#well that definitely does something to it...
+#okay, so what happens now if I use the b scores to normalize the luciferase data
+
+bscore <- b_score(data = data.sub[which(data.sub$PlateNum == 2),]$RL,
+      well =data.sub[which(data.sub$PlateNum == 2),]$PlateLocation, 
+      plate =384)
+
+#how do I put the b scores back into the original dataframe?
+#why are these values from b_score different from what's indicated on the platemap
+#this does the same thing as the b_score
+# platemap <- plate_map(data.sub[which(data.sub$PlateNum == 2),]$RL, data.sub[which(data.sub$PlateNum == 2),]$PlateLocation)
+# medsmooth <- med_smooth(platemap = platemap, plate = 384)
+
+#transform bscore so that its all positive - not sure the best way to do this, but it should be arbitrary, right? 
+#library(scale)
+
+bscore$rescale <- rescale(bscore$residual, to = c(0, 100)) 
+#merge into original thing
+eCell.TAAR <- merge(data.sub[which(data.sub$PlateNum == 2),], bscore, by.x = "PlateLocation", by.y = "well")
+#normalize
+eCell.TAAR$norm_bscore <- eCell.TAAR$LucData/eCell.TAAR$rescale
+#map it
+raw_map(data = eCell.TAAR$norm_bscore,
+        well =eCell.TAAR$PlateLocation, 
+        plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("ECell hTAAR5; normalized by bscore")
+
+#everything is really low, this could be because we are using too high a concentration of TMA so the inhibition is not at EC80 and it doesn't make any difference, or this could be because of outliers
+#Its probably a combination, I should check for outliers with the bscore, but I'm not sure what the cutoff should be
+
+#look at the distribution of scores
+# bscore.mean <- mean(bscore$residual)
+# bscore.sd <- sd(bscore$residual)
+# bscore.min <- bscore.mean - 2*bscore.sd
+# bscore.max <- bscore.mean + 2*bscore.sd
+# 
+# LowRL<-subset(Screen, Screen$RLData < 1000) #how many have low RL? (for H3A cells)
+# bscore.noOutliers<-subset(bscore, bscore$residual > bscore.min & bscore$residual < bscore.max) #subset out low RL values
+# bscore.noOutliers$bscore_rescale <- rescale(bscore.noOutliers$residual, to = c(0, 100)) 
+# 
+# eCell.TAAR <- merge(data.sub[which(data.sub$PlateNum == 2),], bscore.noOutliers, by.x = "PlateLocation", by.y = "well")
+# #normalize
+# eCell.TAAR$norm_bscore <- eCell.TAAR$LucData/eCell.TAAR$bscore_rescale
+# #map it
+# raw_map(data = eCell.TAAR$norm_bscore,
+#         well =eCell.TAAR$PlateLocation, 
+#         plate =384) +
+#   theme_dark() +
+#   scale_fill_viridis() +
+#   ggtitle("ECell hTAAR5; normalized by bscore")
+#this method of doing it does not work, just take out the outliers from this the original way
+
+#take out outliers from the normalized values
+eCell.TAAR$norm_bscore[which(eCell.TAAR$norm_bscore == Inf)] = 0
+max.bscore <- mean(eCell.TAAR$norm_bscore) + 2*sd(eCell.TAAR$norm_bscore)
+eCell.TAAR.noOutlier <- subset(eCell.TAAR, norm_bscore< max.bscore)
+raw_map(data = eCell.TAAR.noOutlier$norm_bscore,
+        well =eCell.TAAR.noOutlier$PlateLocation, 
+        plate =384) +
+  theme_dark() +
+  scale_fill_viridis() +
+  ggtitle("ECell hTAAR5; normalized by bscore")
+
+#kindof better, but its still weird, I think I have to figure out what this b score is doing and whether I can get the values from the bscore instead of the residuals
