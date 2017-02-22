@@ -1,0 +1,312 @@
+---
+title: "Plate Effects"
+output: pdf_document
+---
+
+#1-17-17
+Ran one 384 well plate. All wells were transfected with hTAAR5 and all wells were stimulated with TMA. This was to examine for plate effects if everything in the plate had the same input.  
+
+```{r, echo = FALSE, warning = FALSE}
+library(platetools)
+library(ggplot2)
+library(viridis)
+library(plyr)
+library(reshape2)
+
+#import data
+df <- read.csv("011817-PlateEffectsAnalysis.csv")
+
+#remove outliers
+RLmax <- mean(df$RLData) + 3*sd(df$RLData)
+df <- subset(df, df$RLData< RLmax)
+#make map
+raw_map(data = df$RLData, 
+        well = df$PlateLocation, 
+        plate = 384) +
+  scale_fill_viridis() +
+  theme_dark() +
+  ggtitle("RL Data heat map")
+  
+raw_map(data = df$LucData, 
+        well = df$PlateLocation, 
+        plate = 384) +
+  scale_fill_viridis() +
+  theme_dark() +
+  ggtitle("luciferase Data Heat map")
+
+df$norm <- df$LucData/df$RLData
+
+raw_map(data = df$norm, 
+        well = df$PlateLocation, 
+        plate = 384) +
+  scale_fill_viridis() +
+  theme_dark() +
+  ggtitle("normalized data heat map")
+```
+  
+The RL Data has the expected gradient from top to bottom. Unexpectedly, the luc data also shows a gradient. Both of these contribute to the gradient seen in the normalized data.  
+It is confusing that those wells with fewer cells (lower RL readings) would have higher luciferase readings (signal).  
+  
+#1-26-17
+This experiment is to work out what some of the plate effects we are seeing are caused by. The plates had cells plated in different directions and were run in different directions on the plate reader to see if we can isolate the cause of any of these plate effects. 
+All of the wells were transfected with Rho (empty vector) and stimulated with forskolin. This should also allow for reduction in transfection-related events because forskolin activation does not depend on a receptor.  
+
+```{r, echo=FALSE}
+plateTest <- read.csv("170127-PlateEffects.csv")
+plateTest$norm <- plateTest$LucData/plateTest$RLData
+#remove far outliers (this improves the quality of the heat map)
+plateTest <- ddply(plateTest, .variables = c("PlateNum"), function(x) (subset(x, x$RLData<(mean(x$RLData) + 3*sd(plateTest$RLData)))))
+plateTest <- ddply(plateTest, .variables = c("PlateNum"), function(x) (subset(x, x$RLData>(mean(x$RLData) - 2*sd(plateTest$RLData)))))
+```
+  
+##Plate 1 
+had cells plated from top to bottom (the usual way), but was read with a different protocol. We changed the plate type on the software from standard 384 to Corning flat-bottomed 384 (which is what the technical plate type is). These two plate types are most likely similar and this should not cause any differences.  
+```{r, echo = FALSE}
+#plot the maps
+raw_map(data = plateTest[which(plateTest$PlateNum == 1),]$RLData, 
+        well = plateTest[which(plateTest$PlateNum == 1),]$PlateLocation, 
+        plate = 384) +
+  scale_fill_viridis() +
+  theme_dark() + 
+  ggtitle("Plate 1 - read using different protocol (plate type was changed) + RL")
+
+raw_map(data = plateTest[which(plateTest$PlateNum == 1),]$LucData, 
+        well = plateTest[which(plateTest$PlateNum == 1),]$PlateLocation, 
+        plate = 384) +
+  scale_fill_viridis() +
+  theme_dark() + 
+  ggtitle("Plate 1 - read using different protocol (plate type was changed) + luciferase")
+
+raw_map(data = plateTest[which(plateTest$PlateNum == 1),]$norm, 
+        well = plateTest[which(plateTest$PlateNum == 1),]$PlateLocation, 
+        plate = 384) +
+  scale_fill_viridis() +
+  theme_dark() + 
+  ggtitle("Plate 1 - read using different protocol (plate type was changed) + normalized luciferase")
+
+```
+  
+For plate 1: There is a gradient on the RL still, so the protocol did not seem to make any difference. The luciferase data alone seems to look pretty normal without a gradient - unlike the first control run. 
+  
+##Plate 2 
+had cells plated from top to bottom (normally), but the plate was put in the reader upside down. This means that in the heat map, the results on row A are actually from row P. If we see the same pattern in RL from top to bottom, this means the plate reader has some effects on the gradient we are seeing.  
+```{r, echo = FALSE}
+raw_map(data = plateTest[which(plateTest$PlateNum == 2),]$RLData, 
+        well = plateTest[which(plateTest$PlateNum == 2),]$PlateLocation, 
+        plate = 384) +
+  scale_fill_viridis() +
+  theme_dark() + 
+  ggtitle("Plate 2 - read upside down + RL")
+
+raw_map(data = plateTest[which(plateTest$PlateNum == 2),]$LucData, 
+        well = plateTest[which(plateTest$PlateNum == 2),]$PlateLocation, 
+        plate = 384) +
+  scale_fill_viridis() +
+  theme_dark() + 
+  ggtitle("Plate 2 - read upside down + luciferase")
+
+raw_map(data = plateTest[which(plateTest$PlateNum == 2),]$norm, 
+        well = plateTest[which(plateTest$PlateNum == 2),]$PlateLocation, 
+        plate = 384) +
+  scale_fill_viridis() +
+  theme_dark() + 
+  ggtitle("Plate 2 - read upside down + normalized luciferase")
+```
+  
+Plate 2: RL alone shows increase in the first 3-4 rows but the rest of the plate doesn't show a gradient (these are still opposite of the rows we would expect to be increased if the gradient was caused fully by my plating top to bottom). Therefore, I would conclude that the plate reader has some part in the gradient we are seeing expressed in the RL.  
+Luciferase values are fairly even throughout the plate.  
+The normalized values show a similar gradient to those we saw in the previous runs were the bottom rows are lighter and the top rows are darker - this was due mostly to the RL values in previous runs, its possible that it is here to even though we do not see the gradient as dramatically in RL alone.  
+  
+##Plate 3
+had cells plated bottom to top (opposite of normal) to examine plate effects for differences in cell amounts due to plating bias.  
+```{r, echo=FALSE}
+raw_map(data = plateTest[which(plateTest$PlateNum == 3),]$RLData, 
+        well = plateTest[which(plateTest$PlateNum == 3),]$PlateLocation, 
+        plate = 384) +
+  scale_fill_viridis() +
+  theme_dark() + 
+  ggtitle("Plate 3 - plate cells bottom to top + RL")
+
+raw_map(data = plateTest[which(plateTest$PlateNum == 3),]$LucData, 
+        well = plateTest[which(plateTest$PlateNum == 3),]$PlateLocation, 
+        plate = 384) +
+  scale_fill_viridis() +
+  theme_dark() + 
+  ggtitle("Plate 3 - plate cells bottom to top + luciferase")
+
+raw_map(data = plateTest[which(plateTest$PlateNum == 3),]$norm, 
+        well = plateTest[which(plateTest$PlateNum == 3),]$PlateLocation, 
+        plate = 384) +
+  scale_fill_viridis() +
+  theme_dark() + 
+  ggtitle("Plate 3 - plate cells bottom to top + normalized luciferase")
+```
+  
+Plate 3: The bottom to top plating looks the same as the top to bottom plating, in that the higher RL values are at the top of the plate. Therefore, it does not seem that plating cells has a main effect on the RL gradients that we are seeing. (If it were, we would expect higher RL values to be at the bottom of the plate).  
+  
+##Plate 4 
+has cells plated from left to right.  
+```{r, echo = FALSE}
+raw_map(data = plateTest[which(plateTest$PlateNum == 4),]$RLData, 
+        well = plateTest[which(plateTest$PlateNum == 4),]$PlateLocation, 
+        plate = 384) +
+  scale_fill_viridis() +
+  theme_dark() + 
+  ggtitle("Plate 4 - plate cells left to right + RL")
+
+raw_map(data = plateTest[which(plateTest$PlateNum == 4),]$LucData, 
+        well = plateTest[which(plateTest$PlateNum == 4),]$PlateLocation, 
+        plate = 384) +
+  scale_fill_viridis() +
+  theme_dark() + 
+  ggtitle("Plate 4 - plate cells left to right + luciferase")
+
+raw_map(data = plateTest[which(plateTest$PlateNum == 4),]$norm, 
+        well = plateTest[which(plateTest$PlateNum == 4),]$PlateLocation, 
+        plate = 384) +
+  scale_fill_viridis() +
+  theme_dark() + 
+  ggtitle("Plate 4 - plate cells left to right + normalized luciferase")
+```
+  
+Plate 4: Here you see a LITTLE BIT of an RL gradient from top to bottom, but I wouldn't necessarily pick it out right away. If the RL gradient were due solely to the plate reader, I would expect the same top to bottom gradient. There might be a little but it is less obvious. I don't know what this means. Likely there is more than one factor at play here.  
+  
+##Quantitative measurement of plate effects top to bottom. 
+I will use a linear model to determine if the visual effect can be quantified using a linear model. If p<0.05 than the slope is significantly non-zero, meaning that there is a linear change from row to row.  
+  
+###Run from 1-17-17  
+```{r, echo = FALSE}
+df <- read.csv("011817-PlateEffectsAnalysis.csv") #don't eliminate outliers for this analysis
+#make a column that just has the row information from the plate
+df$row <- df$PlateLocation
+for (i in c(10, 20,1:9,11:19,21:24)){
+  df$row<-gsub(paste0(i),"",df$row)
+}
+df$rowNum <- rep(1:16, 24)#make the rows into numbers for the linear model
+df.model <- lm(RLData~rowNum, data = df) #define the linear model
+df.eq = function(x){summary(df.model)$coefficients[2,1]*x + (summary(df.model)$coefficients[1,1])}
+#plot this with the model
+ggplot(df, aes(x = row, y = RLData)) +
+  geom_point() +
+  stat_function(fun = df.eq, colour = "#00BFC4")  +
+  annotate("text", x=10, y = 9800, label = paste("p=",summary(df.model)$coefficients[2,4]), colour = "#00BFC4") +
+  ggtitle("RL versus row")
+#check p value - its significant
+
+#Lets check it for luciferase too, to be sure that there isn't a gradient
+#I should probably check for gradient in the other direction too...
+df.model <- lm(LucData~rowNum, data = df) #define the linear model
+df.eq = function(x){summary(df.model)$coefficients[2,1]*x + (summary(df.model)$coefficients[1,1])}
+ggplot(df, aes(x = row, y = LucData)) +
+  geom_point() +
+  stat_function(fun = df.eq, colour = "#00BFC4") +
+  annotate("text", x=10, y = 2000, label = paste("p=",summary(df.model)$coefficients[2,4]), colour = "#00BFC4") +
+  ggtitle("Luc versus row")
+#wow, luciferase does have a gradient - I think I saw this
+```
+  
+There is a significant effect for RL values as well as a significant effect for luciferase. We do not see luciferase effect consistently across plates. 
+  
+###Run from 1-26-17  
+  
+```{r, echo = FALSE}
+#plate 1
+plateTest <- read.csv("170127-PlateEffects.csv")
+plateTest$norm <- plateTest$LucData/plateTest$RLData
+plateTest$row <- df$PlateLocation
+for (i in c(10, 20,1:9,11:19,21:24)){
+ plateTest$row<-gsub(paste0(i),"",plateTest$row)
+}
+plateTest$rowNum <- rep(1:16, 24*4)#make the rows into numbers for the linear model
+
+for (i in 1:4){
+  #model plate 1 RL
+  df.model.RL <- lm(RLData~rowNum, data = plateTest[which(plateTest$PlateNum ==i),]) #define the linear model
+  df.eqrl = function(x){summary(df.model.RL)$coefficients[2,1]*x + (summary(df.model.RL)$coefficients[1,1])}
+  summary(df.model.RL)
+  df.model <- lm(LucData~rowNum, data = plateTest[which(plateTest$PlateNum ==i),]) #define the linear model
+  df.eqluc = function(x){summary(df.model)$coefficients[2,1]*x + (summary(df.model)$coefficients[1,1])}
+  summary(df.model)
+  #plot it
+  plateTest2 <- subset(plateTest, select = c("PlateLocation", "RLData", "LucData", "norm", "PlateNum", "row", "rowNum"))
+  plateTest2 <- melt(plateTest2, c("PlateLocation", "PlateNum", "row", "rowNum") )
+#plot it!  
+  print(
+    ggplot(data = subset(plateTest2, PlateNum == i & variable %in% c("RLData", "LucData")) , aes(x = row, y = value, colour = variable)) +
+      geom_point() +
+      stat_function(fun = df.eqrl, colour = "#F8766D") +
+      annotate("text", x=5, y = 10000, label = paste("p=",summary(df.model.RL)$coefficients[2,4]), colour = "#F8766D")+
+      stat_function(fun = df.eqluc, colour = "#00BFC4") +
+      annotate("text", x=5, y = 9200, label = paste("p=",summary(df.model)$coefficients[2,4]), colour = "#00BFC4")+
+      ggtitle(paste("plate", i))
+    )
+  }
+```
+   
+We see a significant linear model for the RL values in all of these plates and they are all negative meaning the gradient is in the same direction. This suggets that we are seeing the same gradient on all plates, so something is happening in the reading stage of the process. 
+   
+We will also check for horizontal plate effects on all of these plates.  
+  
+##Horizontal effects
+###1-17-17
+  
+```{r, echo = FALSE}
+#check for horizontal effects on the plates
+df$column <- df$PlateLocation
+columns <- list("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P")
+for(i in 1:length(columns)){
+  df$column <- gsub(paste0(columns[i]), "", df$column)
+}
+df$column <- as.numeric(df$column)
+
+df.model <- lm(RLData~column, data = df) #define the linear model
+df.eq = function(x){summary(df.model)$coefficients[2,1]*x + (summary(df.model)$coefficients[1,1])}
+ggplot(df, aes(x = column, y = RLData)) +
+  geom_point() +
+  stat_function(fun = df.eq, colour = "#00BFC4") +
+  annotate("text", x=10, y = 7000, label = paste("p=",summary(df.model)$coefficients[2,4]), colour = "#00BFC4") +
+  ggtitle("RL across columns")
+
+df.model <- lm(LucData~column, data = df) #define the linear model
+df.eq = function(x){summary(df.model)$coefficients[2,1]*x + (summary(df.model)$coefficients[1,1])}
+ggplot(df, aes(x = column, y = LucData)) +
+  geom_point() +
+  stat_function(fun = df.eq, colour = "#00BFC4") +
+  annotate("text", x=10, y = 5000, label = paste("p=",summary(df.model)$coefficients[2,4]), colour = "#00BFC4") +
+  ggtitle("Luc across columns")
+```
+  
+###1-26-17  
+SO MANY PLATE EFFECTS! WHAT IS HAPPENING
+```{r, echo = FALSE}
+#horizontal effects
+plateTest$column <- plateTest$PlateLocation
+columns <- list("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P")
+for(i in 1:length(columns)){
+  plateTest$column <- gsub(paste0(columns[i]), "", plateTest$column)
+}
+plateTest$column <- as.numeric(plateTest$column)
+for (i in 1:4){
+  #model plate 1 RL
+  df.model.RL <- lm(RLData~column, data = plateTest[which(plateTest$PlateNum ==i),]) #define the linear model
+  df.eqrl = function(x){summary(df.model.RL)$coefficients[2,1]*x + (summary(df.model.RL)$coefficients[1,1])}
+  df.model <- lm(LucData~column, data = plateTest[which(plateTest$PlateNum ==i),]) #define the linear model
+  df.eqluc = function(x){summary(df.model)$coefficients[2,1]*x + (summary(df.model)$coefficients[1,1])}
+  #plot it
+  plateTest2 <- subset(plateTest, select = c("PlateLocation", "RLData", "LucData", "norm", "PlateNum", "row", "rowNum", "column"))
+  plateTest2 <- melt(plateTest2, c("PlateLocation", "PlateNum", "row", "rowNum", "column") )
+  print(
+    ggplot(data = subset(plateTest2, PlateNum == i & variable %in% c("RLData", "LucData")) , aes(x = column, y = value, colour = variable)) +
+      geom_point() +
+      stat_function(fun = df.eqrl, colour = "#F8766D") +
+      annotate("text", x=5, y = 10000, label = paste("p=",summary(df.model.RL)$coefficients[2,4]), colour = "#F8766D")+
+      stat_function(fun = df.eqluc, colour = "#00BFC4") +
+      annotate("text", x=5, y = 9200, label = paste("p=",summary(df.model)$coefficients[2,4]), colour = "#00BFC4")+
+      ggtitle(paste("plate", i))
+  )
+}
+```  
+  
+Even though the luciferase is significant, it does not really appear to be a linear relationship. 
+Certainly, any effects of RL are smaller than in previous plates. 
+The positive value of the slope on plate 3 for RL horizontal effect may be due to the fact that I accidentally threw some cells out of wells on columns A and B while I was trying to tap down the liquid in other wells. This also happened a little bit with plate 1 and 2. 
